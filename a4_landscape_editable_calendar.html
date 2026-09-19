@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可列印月曆 A4 Landscape Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #f3f4f6;
+            margin: 0;
+            padding: 0;
+            color: #000;
+        }
+
+        /* A4 Landscape Dimensions: 297mm x 210mm */
+        .a4-page {
+            width: 297mm;
+            height: 210mm;
+            padding: 10mm 15mm;
+            background: white;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* Printable textareas / contenteditable styling */
+        .cell-textarea {
+            width: 100%;
+            height: calc(100% - 1.2rem);
+            resize: none;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: var(--cell-font-size, 11px);
+            line-height: 1.3;
+            padding: 2px 0;
+            color: inherit;
+            font-family: inherit;
+        }
+
+        .note-input {
+            font-size: var(--note-font-size, 12px);
+        }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+
+            body {
+                background: white;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .a4-page {
+                box-shadow: none;
+                margin: 0;
+                width: 297mm;
+                height: 210mm;
+                padding: 10mm 12mm;
+                page-break-after: always;
+                page-break-inside: avoid;
+            }
+
+            .cell-textarea::placeholder {
+                color: transparent;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start pb-10">
+
+    <div class="no-print w-full max-w-6xl bg-white mt-6 p-4 rounded-xl shadow-md border border-gray-200 flex flex-col gap-4">
+        
+        <!-- Section 1: Time, Typography, File & Print Tools -->
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <!-- Left: Date & Font Selection -->
+            <div class="flex flex-wrap items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <label for="yearSelect" class="text-xs font-bold uppercase tracking-wider text-gray-600">年份 Year:</label>
+                    <select id="yearSelect" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black">
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="monthSelect" class="text-xs font-bold uppercase tracking-wider text-gray-600">月份 Month:</label>
+                    <select id="monthSelect" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm font-semibold bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black">
+                    </select>
+                </div>
+                
+                <div class="h-6 w-px bg-gray-300 mx-1"></div>
+                
+                <div class="flex items-center gap-2">
+                    <label for="fontSizeSelect" class="text-xs font-bold uppercase tracking-wider text-gray-600">字體大小 Font Size:</label>
+                    <select id="fontSizeSelect" class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black">
+                        <option value="9px">特小 XS (9px)</option>
+                        <option value="11px" selected>預設 Regular (11px)</option>
+                        <option value="13px">中等 Medium (13px)</option>
+                        <option value="15px">大號 Large (15px)</option>
+                        <option value="18px">特大 XL (18px)</option>
+                    </select>
+                </div>
+
+                <div class="h-6 w-px bg-gray-300 mx-1"></div>
+
+                <!-- History Dropdown -->
+                <div class="flex items-center gap-2">
+                    <label for="historySelect" class="text-xs font-bold uppercase tracking-wider text-gray-600">快選存檔 History:</label>
+                    <select id="historySelect" class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm font-semibold bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black">
+                        <option value="">-- 已儲存月份 --</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Right: Action Buttons (File & Print) -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Save JSON -->
+                <button id="saveJsonBtn" class="px-3 py-1.5 text-xs font-bold text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    另存 JSON 檔
+                </button>
+                
+                <!-- Load JSON -->
+                <button id="loadJsonBtn" class="px-3 py-1.5 text-xs font-bold text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    讀取 JSON 檔
+                </button>
+                <input type="file" id="fileInput" accept=".json" class="hidden" />
+
+                <div class="h-6 w-px bg-gray-300 mx-1"></div>
+
+                <button id="clearBtn" class="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200">
+                    清空本月 Clear
+                </button>
+
+                <button id="printBtn" class="px-4 py-1.5 text-sm font-bold text-white bg-black hover:bg-gray-800 rounded-lg shadow transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    列印 A4
+                </button>
+            </div>
+        </div>
+
+        <div class="h-px w-full bg-gray-200"></div>
+
+        <!-- Section 2: Color Customization Panel -->
+        <div class="flex flex-wrap items-center justify-between gap-4 text-sm bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <!-- Left: Current Color Pickers -->
+            <div class="flex flex-wrap items-center gap-6">
+                <div class="flex items-center gap-2">
+                    <label for="textColorPicker" class="text-xs font-bold uppercase tracking-wider text-gray-700">文字顏色 Text Color:</label>
+                    <input type="color" id="textColorPicker" value="#111827" class="w-8 h-8 cursor-pointer border border-gray-300 rounded bg-white p-0.5">
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label for="bgColorPicker" class="text-xs font-bold uppercase tracking-wider text-gray-700">格子底色 Cell BG:</label>
+                    <input type="color" id="bgColorPicker" value="#ffffff" class="w-8 h-8 cursor-pointer border border-gray-300 rounded bg-white p-0.5">
+                    <button id="resetBgBtn" class="text-xs text-gray-500 underline hover:text-black ml-1">無背景 (Transparent)</button>
+                </div>
+            </div>
+
+            <!-- Right: Quick Presets -->
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">快捷標籤 Presets:</span>
+                <button class="preset-btn px-2.5 py-1 text-xs font-semibold rounded-md border border-red-300 bg-red-100 text-red-800 hover:bg-red-200" data-bg="#fee2e2" data-text="#991b1b">
+                    放假 (休)
+                </button>
+                <button class="preset-btn px-2.5 py-1 text-xs font-semibold rounded-md border border-yellow-300 bg-yellow-100 text-yellow-800 hover:bg-yellow-200" data-bg="#fef3c7" data-text="#92400e">
+                    重點 (重要)
+                </button>
+                <button class="preset-btn px-2.5 py-1 text-xs font-semibold rounded-md border border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-200" data-bg="#dbeafe" data-text="#1e40af">
+                    會議 (Meeting)
+                </button>
+                <button class="preset-btn px-2.5 py-1 text-xs font-semibold rounded-md border border-green-300 bg-green-100 text-green-800 hover:bg-green-200" data-bg="#dcfce7" data-text="#166534">
+                    工作 (Work)
+                </button>
+                <button class="preset-btn px-2.5 py-1 text-xs font-semibold rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-100" data-bg="#ffffff" data-text="#111827">
+                    重設色盤
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="a4-page">
+        <!-- Header Section -->
+        <header class="flex justify-center items-center py-2 mb-2">
+            <div class="flex items-center gap-6">
+                <!-- Month Column -->
+                <div class="flex flex-col items-center justify-center leading-none text-right">
+                    <span id="headerMonthText" class="text-2xl font-black tracking-widest uppercase">JUL</span>
+                    <span id="headerMonthNum" class="text-6xl font-black tracking-tighter">07</span>
+                </div>
+
+                <!-- Vertical Divider -->
+                <div class="w-0.5 h-20 bg-black"></div>
+
+                <!-- Year Column -->
+                <div class="flex flex-col items-center justify-center leading-none tracking-tighter text-6xl font-black">
+                    <span id="headerYearTop">20</span>
+                    <span id="headerYearBottom">25</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Calendar Grid Container -->
+        <div class="flex-grow flex flex-col justify-start">
+            <!-- Weekday Headers -->
+            <div class="grid grid-cols-7 border-t-2 border-b-2 border-black text-center font-bold text-xs py-1.5 uppercase tracking-wider">
+                <div>SUN</div>
+                <div>MON</div>
+                <div>TUE</div>
+                <div>WED</div>
+                <div>THU</div>
+                <div>FRI</div>
+                <div>SAT</div>
+            </div>
+
+            <!-- Days Grid -->
+            <div id="calendarGrid" class="grid grid-cols-7 flex-grow border-b border-gray-300">
+                <!-- Dynamic Days -->
+            </div>
+        </div>
+
+        <!-- Footer Notes Section -->
+        <footer class="mt-2 pt-1">
+            <div class="text-xs font-black tracking-wider uppercase mb-1">NOTE</div>
+            <div class="space-y-0">
+                <div class="relative">
+                    <input type="text" id="note1" class="note-input w-full bg-transparent border-b border-dashed border-gray-400 focus:outline-none py-0.5" placeholder="" />
+                </div>
+                <div class="relative">
+                    <input type="text" id="note2" class="note-input w-full bg-transparent border-b border-dashed border-gray-400 focus:outline-none py-0.5" placeholder="" />
+                </div>
+                <div class="relative">
+                    <input type="text" id="note3" class="note-input w-full bg-transparent border-b border-dashed border-gray-400 focus:outline-none py-0.5" placeholder="" />
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+        // DOM Elements
+        const yearSelect = document.getElementById('yearSelect');
+        const monthSelect = document.getElementById('monthSelect');
+        const historySelect = document.getElementById('historySelect');
+        const fontSizeSelect = document.getElementById('fontSizeSelect');
+        const calendarGrid = document.getElementById('calendarGrid');
+
+        const textColorPicker = document.getElementById('textColorPicker');
+        const bgColorPicker = document.getElementById('bgColorPicker');
+        const resetBgBtn = document.getElementById('resetBgBtn');
+        const presetBtns = document.querySelectorAll('.preset-btn');
+
+        const headerMonthText = document.getElementById('headerMonthText');
+        const headerMonthNum = document.getElementById('headerMonthNum');
+        const headerYearTop = document.getElementById('headerYearTop');
+        const headerYearBottom = document.getElementById('headerYearBottom');
+
+        const printBtn = document.getElementById('printBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const saveJsonBtn = document.getElementById('saveJsonBtn');
+        const loadJsonBtn = document.getElementById('loadJsonBtn');
+        const fileInput = document.getElementById('fileInput');
+
+        let activeCell = null;
+        let activeTextarea = null;
+
+        // Initialize selectors
+        function initSelectors() {
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth();
+
+            for (let y = currentYear - 5; y <= currentYear + 10; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (y === currentYear) opt.selected = true;
+                yearSelect.appendChild(opt);
+            }
+
+            monthNames.forEach((name, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.textContent = `${index + 1}月 (${name})`;
+                if (index === currentMonth) opt.selected = true;
+                monthSelect.appendChild(opt);
+            });
+        }
+
+        // Font size initialization
+        function initFontSize() {
+            const savedSize = localStorage.getItem('cal_font_size') || '11px';
+            fontSizeSelect.value = savedSize;
+            document.documentElement.style.setProperty('--cell-font-size', savedSize);
+            document.documentElement.style.setProperty('--note-font-size', savedSize);
+
+            fontSizeSelect.addEventListener('change', (e) => {
+                const newSize = e.target.value;
+                document.documentElement.style.setProperty('--cell-font-size', newSize);
+                document.documentElement.style.setProperty('--note-font-size', newSize);
+                localStorage.setItem('cal_font_size', newSize);
+            });
+        }
+
+        // Helper: Convert RGB string to HEX
+        function rgbToHex(rgb) {
+            if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return '#ffffff';
+            const res = rgb.match(/\d+/g);
+            if (!res || res.length < 3) return '#ffffff';
+            return '#' + res.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+        }
+
+        // Color Control Event Handling
+        function initColorPickers() {
+            textColorPicker.addEventListener('input', (e) => {
+                const color = e.target.value;
+                if (activeTextarea) {
+                    activeTextarea.style.color = color;
+                    saveCurrentMonthData();
+                }
+            });
+
+            bgColorPicker.addEventListener('input', (e) => {
+                const color = e.target.value;
+                if (activeCell) {
+                    activeCell.style.backgroundColor = color;
+                    saveCurrentMonthData();
+                }
+            });
+
+            resetBgBtn.addEventListener('click', () => {
+                bgColorPicker.value = '#ffffff';
+                if (activeCell) {
+                    activeCell.style.backgroundColor = 'transparent';
+                    saveCurrentMonthData();
+                }
+            });
+
+            presetBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const bg = btn.getAttribute('data-bg');
+                    const text = btn.getAttribute('data-text');
+
+                    bgColorPicker.value = bg;
+                    textColorPicker.value = text;
+
+                    if (activeCell && activeTextarea) {
+                        activeCell.style.backgroundColor = bg === '#ffffff' ? 'transparent' : bg;
+                        activeTextarea.style.color = text;
+                        saveCurrentMonthData();
+                    }
+                });
+            });
+        }
+
+        // Storage Key Helper
+        function getStorageKey(year, month) {
+            return `cal_data_${year}_${String(parseInt(month) + 1).padStart(2, '0')}`;
+        }
+
+        // Get current whole month data payload
+        function getCurrentMonthPayload() {
+            const year = yearSelect.value;
+            const month = monthSelect.value;
+
+            const daysData = {};
+            const textareas = calendarGrid.querySelectorAll('.cell-textarea');
+
+            textareas.forEach(textarea => {
+                const day = textarea.dataset.day;
+                const cell = textarea.parentElement;
+                daysData[day] = {
+                    text: textarea.value,
+                    textColor: textarea.style.color || '#111827',
+                    bgColor: cell.style.backgroundColor || 'transparent'
+                };
+            });
+
+            const notes = {
+                note1: document.getElementById('note1').value,
+                note2: document.getElementById('note2').value,
+                note3: document.getElementById('note3').value
+            };
+
+            return {
+                version: "1.0",
+                year: parseInt(year),
+                month: parseInt(month),
+                days: daysData,
+                notes: notes,
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        // Save current month to LocalStorage
+        function saveCurrentMonthData() {
+            const payload = getCurrentMonthPayload();
+            const key = getStorageKey(payload.year, payload.month);
+            localStorage.setItem(key, JSON.stringify(payload));
+            updateHistoryDropdown();
+        }
+
+        // Load specific payload into calendar UI
+        function applyDataPayload(payload) {
+            if (!payload || !payload.year || payload.month === undefined) return;
+
+            yearSelect.value = payload.year;
+            monthSelect.value = payload.month;
+
+            renderCalendar(payload);
+
+            if (payload.notes) {
+                document.getElementById('note1').value = payload.notes.note1 || '';
+                document.getElementById('note2').value = payload.notes.note2 || '';
+                document.getElementById('note3').value = payload.notes.note3 || '';
+            }
+        }
+
+        // Refresh History Dropdown
+        function updateHistoryDropdown() {
+            historySelect.innerHTML = '<option value="">-- 已儲存月份 --</option>';
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k.startsWith('cal_data_')) {
+                    keys.push(k);
+                }
+            }
+            keys.sort();
+            keys.forEach(k => {
+                const parts = k.replace('cal_data_', '').split('_');
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.textContent = `${parts[0]} 年 ${parts[1]} 月`;
+                historySelect.appendChild(opt);
+            });
+        }
+
+        // Export to JSON File (Supports File System Access API & Blob Download)
+        async function exportToJsonFile() {
+            const payload = getCurrentMonthPayload();
+            const yearStr = payload.year;
+            const monthStr = String(payload.month + 1).padStart(2, '0');
+            const defaultFilename = `Calendar_${yearStr}_${monthStr}.json`;
+            const jsonString = JSON.stringify(payload, null, 2);
+
+            // Modern Browsers with File System Access API
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: defaultFilename,
+                        types: [{
+                            description: 'JSON Calendar Backup File',
+                            accept: { 'application/json': ['.json'] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(jsonString);
+                    await writable.close();
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // User canceled
+                    console.warn("SavePicker failed, fallback to download link", err);
+                }
+            }
+
+            // Fallback Blob download
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = defaultFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Import from JSON File
+        function importFromJsonFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const payload = JSON.parse(event.target.result);
+                    if (payload.year && payload.month !== undefined && payload.days) {
+                        applyDataPayload(payload);
+                        saveCurrentMonthData();
+                    } else {
+                        alert('檔案格式不相容或資料缺失！');
+                    }
+                } catch (err) {
+                    alert('讀取失敗，請確認是否為有效的 JSON 檔。');
+                }
+                fileInput.value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        }
+
+        // Render Calendar Grid
+        function renderCalendar(presetPayload = null) {
+            const year = parseInt(yearSelect.value);
+            const month = parseInt(monthSelect.value);
+
+            // Update Header Display
+            headerMonthText.textContent = monthNames[month];
+            headerMonthNum.textContent = String(month + 1).padStart(2, '0');
+            
+            const yearStr = String(year);
+            headerYearTop.textContent = yearStr.slice(0, 2);
+            headerYearBottom.textContent = yearStr.slice(2, 4);
+
+            // Clear Grid & Selection State
+            calendarGrid.innerHTML = '';
+            activeCell = null;
+            activeTextarea = null;
+
+            // Load saved data for this month if no preset given
+            const key = getStorageKey(year, month);
+            let monthData = presetPayload;
+            if (!monthData) {
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    try { monthData = JSON.parse(raw); } catch(e){}
+                }
+            }
+
+            // Load notes if present in data
+            if (monthData && monthData.notes) {
+                document.getElementById('note1').value = monthData.notes.note1 || '';
+                document.getElementById('note2').value = monthData.notes.note2 || '';
+                document.getElementById('note3').value = monthData.notes.note3 || '';
+            } else if (!presetPayload) {
+                document.getElementById('note1').value = '';
+                document.getElementById('note2').value = '';
+                document.getElementById('note3').value = '';
+            }
+
+            // Calculate dates
+            const firstDayIndex = new Date(year, month, 1).getDay(); // Day of week (0-6)
+            const daysInMonth = new Date(year, month + 1, 0).getDate(); // Days in month
+            const totalCells = firstDayIndex + daysInMonth;
+            const rows = Math.ceil(totalCells / 7);
+
+            calendarGrid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+
+            // Fill empty cells before first day
+            for (let i = 0; i < firstDayIndex; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'border-r border-b border-gray-200 bg-gray-50/50';
+                if (i % 7 === 0) emptyCell.classList.add('border-l');
+                calendarGrid.appendChild(emptyCell);
+            }
+
+            // Fill days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                const cellIndex = (firstDayIndex + day - 1);
+                const isFirstInRow = cellIndex % 7 === 0;
+
+                cell.className = `border-r border-b border-gray-300 p-1 flex flex-col justify-start relative transition-colors ${isFirstInRow ? 'border-l' : ''}`;
+
+                const dayNum = document.createElement('span');
+                dayNum.className = 'text-xs font-semibold text-gray-800 leading-none mb-1 pointer-events-none';
+                dayNum.textContent = day;
+
+                const textarea = document.createElement('textarea');
+                textarea.className = 'cell-textarea';
+                textarea.dataset.day = day;
+
+                // Apply Day Data if exists
+                if (monthData && monthData.days && monthData.days[day]) {
+                    const dayItem = monthData.days[day];
+                    textarea.value = dayItem.text || '';
+                    if (dayItem.textColor) textarea.style.color = dayItem.textColor;
+                    if (dayItem.bgColor) cell.style.backgroundColor = dayItem.bgColor;
+                }
+
+                // Focus & Selection Handlers
+                const setActive = () => {
+                    activeCell = cell;
+                    activeTextarea = textarea;
+
+                    const computedStyle = window.getComputedStyle(textarea);
+                    const cellComputedStyle = window.getComputedStyle(cell);
+
+                    textColorPicker.value = rgbToHex(computedStyle.color);
+                    bgColorPicker.value = rgbToHex(cellComputedStyle.backgroundColor);
+                };
+
+                textarea.addEventListener('focus', setActive);
+                cell.addEventListener('click', setActive);
+
+                textarea.addEventListener('input', () => {
+                    saveCurrentMonthData();
+                });
+
+                cell.appendChild(dayNum);
+                cell.appendChild(textarea);
+                calendarGrid.appendChild(cell);
+            }
+
+            // Fill trailing empty cells
+            const remainingCells = (rows * 7) - totalCells;
+            for (let i = 0; i < remainingCells; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'border-r border-b border-gray-200 bg-gray-50/50';
+                calendarGrid.appendChild(emptyCell);
+            }
+        }
+
+        // Attach event listeners
+        function initEvents() {
+            yearSelect.addEventListener('change', () => renderCalendar());
+            monthSelect.addEventListener('change', () => renderCalendar());
+
+            // History Quick Selector
+            historySelect.addEventListener('change', (e) => {
+                const key = e.target.value;
+                if (!key) return;
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    try {
+                        const payload = JSON.parse(raw);
+                        applyDataPayload(payload);
+                    } catch(err){}
+                }
+            });
+
+            // Notes input listeners
+            ['note1', 'note2', 'note3'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    saveCurrentMonthData();
+                });
+            });
+
+            // File Actions
+            saveJsonBtn.addEventListener('click', exportToJsonFile);
+            loadJsonBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', importFromJsonFile);
+
+            // Print Action
+            printBtn.addEventListener('click', () => {
+                window.print();
+            });
+
+            // Clear Action
+            clearBtn.addEventListener('click', () => {
+                if (confirm('確定要清空本月的所有備忘紀錄與背景顏色設定嗎？')) {
+                    const year = yearSelect.value;
+                    const month = monthSelect.value;
+                    const key = getStorageKey(year, month);
+                    localStorage.removeItem(key);
+                    renderCalendar();
+                    updateHistoryDropdown();
+                }
+            });
+        }
+
+        // App Initialization
+        window.onload = () => {
+            initSelectors();
+            initFontSize();
+            initColorPickers();
+            initEvents();
+            updateHistoryDropdown();
+            renderCalendar();
+        };
+    </script>
+</body>
+</html>
